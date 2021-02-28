@@ -1,0 +1,13 @@
+device = "cuda:0"
+batch_size = 10
+lmbd = 100
+beta_1 = 0.5
+beta_2 = 0.999
+disc_repeats = 1
+lr_G = 0.0002
+lr_D = 0.0002
+num_workers = 0
+num_images = 16
+seed = 5000
+log_folder = "train_logs/test"
+root_path = "/home/misha/datasets/passports_word_annotations/test_campaign/test_template/train.csv"
