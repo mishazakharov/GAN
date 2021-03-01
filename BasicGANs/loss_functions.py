@@ -1,23 +1,23 @@
 import torch
 
 
-def get_wasserstein_loss(net_G, net_D, batch=None, noise_vector=None, c_lambda=10, discriminator=True):
+def get_wasserstein_loss(net_G, net_D, batch=None, noise_vector=None, c_lambda=10, discriminator=True, **kwargs):
     if discriminator:
         # Discriminator real batch
-        D_x = net_D(batch).view(-1)
+        D_x = net_D(batch, **kwargs).view(-1)
         D_x = D_x.mean() - 0.001 * (D_x ** 2).mean()
         (-D_x).backward()
 
         # Discriminator fake batch
-        fake_batch = net_G(noise_vector)
-        D_G_z1 = net_D(fake_batch.detach()).view(-1)
+        fake_batch = net_G(noise_vector, **kwargs)
+        D_G_z1 = net_D(fake_batch.detach(), **kwargs).view(-1)
         D_G_z1 = D_G_z1.mean()
         D_G_z1.backward()
 
         # Calculate gradients on net_D with respect to mixed images
         epsilon = torch.rand(fake_batch.shape[0], 1, 1, 1, device=fake_batch.device, requires_grad=True)
         mixed_images = batch.data * epsilon + fake_batch.data * (1 - epsilon)
-        mixed_scores = net_D(mixed_images)
+        mixed_scores = net_D(mixed_images, **kwargs)
         gradient = torch.autograd.grad(
             inputs=mixed_images,
             outputs=mixed_scores.sum(),
@@ -29,8 +29,8 @@ def get_wasserstein_loss(net_G, net_D, batch=None, noise_vector=None, c_lambda=1
 
         return D_x, D_G_z1, gradient_penalty
     else:
-        fake_batch = net_G(noise_vector)
-        D_G_z2 = net_D(fake_batch).view(-1)
+        fake_batch = net_G(noise_vector, **kwargs)
+        D_G_z2 = net_D(fake_batch, **kwargs).view(-1)
 
         G_error = -D_G_z2.mean()
         G_error.backward()
@@ -74,6 +74,29 @@ def get_minimax_loss(net_G, net_D, criterion, label, batch, noise_batch=None, fa
         D_G_z2 = output.mean().item()
 
         return G_error, D_G_z2
+
+
+def get_hinge_loss(net_G, net_D, batch=None, label=None, noise_vector=None, fake_label=None, discriminator=True):
+    if discriminator:
+        # Real batch
+        D_x = net_D(batch, label).view(-1)
+        D_x = torch.nn.functional.relu(1.0 - D_x).mean()
+        D_x.backward()
+        # Fake batch
+        fake_batch = net_G(noise_vector, fake_label)
+        D_G_z1 = net_D(fake_batch.detach(), fake_label).view(-1)
+        D_G_z1 = torch.nn.functional.relu(1.0 + D_G_z1).mean()
+        D_G_z1.backward()
+
+        return D_x, D_G_z1
+    else:
+        fake_batch_1 = net_G(noise_vector, fake_label)
+        D_G_z2 = net_D(fake_batch_1, fake_label).view(-1)
+
+        G_error = -D_G_z2.mean()
+        G_error.backward()
+
+        return G_error
 
 
 ############################ Legacy code

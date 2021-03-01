@@ -11,7 +11,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from utils import weights_init, CustomDataset, save_checkpoint, save_weight
+from utils import *
 from loss_functions import get_minimax_loss
 
 
@@ -180,24 +180,14 @@ if __name__ == "__main__":
 
             # Output training stats
             if global_step % 100 == 0:
-                for p in net_G.main[0].parameters():
-                    gradient_bottom_G = p.grad.mean().abs().item()
-                tensorboard.add_scalar("G_LOSS", G_error.item(), global_step)
-                tensorboard.add_scalar("D_LOSS", D_error.item(), global_step)
-                tensorboard.add_scalar("D(X)", D_x, global_step)
-                tensorboard.add_scalar("D(G(Z))", D_G_z1, global_step)
-                tensorboard.add_scalar("Bottom layer generator gradient", gradient_bottom_G, global_step)
                 save_checkpoint(
                     os.path.join(log_folder, "checkpoints", "checkpoints.tar"), net_G, net_D, optimizer_G, optimizer_D)
-                print("GLOBAL STEP: {0} , G_LOSS: {1} , D_LOSS: {2} , D(X): {3} , D(G(Z)): {4} / {5}".format(
-                    global_step, G_error.item(), D_error.item(), D_x, D_G_z1, D_G_z2))
+                write_logs({"Global Step": global_step, "G_Loss": G_error.item(), "D_Loss": D_error.item(),
+                            "D(X)": D_x, "D(G(Z))": [D_G_z1, D_G_z2]}, tensorboard, global_step)
 
             # Check how the generator is doing by saving G's output on fixed_noise
             if global_step % 500 == 0:
-                with torch.no_grad():
-                    fake_images = net_G(fixed_noise).detach().cpu()
-
-                tensorboard.add_images("Generator state images", fake_images, global_step)
+                generate_with_fixed_noise(net_G, fixed_noise, tensorboard, global_step)
                 save_weight(os.path.join(log_folder, "SavedModels", str(global_step) + ".pth"), net_G)
 
             global_step += 1

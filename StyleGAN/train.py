@@ -208,6 +208,8 @@ if __name__ == "__main__":
             requires_grad(net_D, True)
             optimizer_D.zero_grad()
 
+            # D_x, D_G_z1, gradient_penalty = get_wasserstein_loss(net_G, net_D, real_batch, noise_vectors_1,
+            #                                                      progressive_growing_phase=pg_step, alpha=alpha)
             D_x = net_D(real_batch, progressive_growing_phase=pg_step, alpha=alpha).view(-1)
             D_x = D_x.mean() - 0.001 * (D_x ** 2).mean()
             (-D_x).backward()
@@ -244,6 +246,8 @@ if __name__ == "__main__":
                 requires_grad(net_G, True)
                 requires_grad(net_D, False)
 
+                # G_error, D_G_z2 = get_wasserstein_loss(net_G, net_D, noise_vectors_2, discriminator=False,
+                #                                        progressive_growing_phase=pg_step, alpha=alpha)
                 fake_batch_1 = net_G(noise_vectors_2, progressive_growing_phase=pg_step, alpha=alpha)
                 D_G_z2 = net_D(fake_batch_1, progressive_growing_phase=pg_step, alpha=alpha).view(-1)
 

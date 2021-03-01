@@ -56,3 +56,25 @@ class CustomDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return self.data.__len__()
+
+
+def write_logs(data, tensorboard, global_step):
+    log_info = []
+    for key, value in data.items():
+        if isinstance(value, list):
+            logging_value = value[0]
+        else:
+            logging_value = value
+
+        tensorboard.add_scalar(key, logging_value, global_step)
+
+        log_info.append(f"{key.upper()}: {value}")
+
+    print(", ".join(log_info))
+
+
+def generate_with_fixed_noise(net_G, fixed_noise, tensorboard, global_step):
+    with torch.no_grad():
+        fake_images = net_G(fixed_noise).detach().cpu()
+
+    tensorboard.add_images("Generator state images", fake_images, global_step)
