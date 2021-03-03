@@ -8,12 +8,16 @@ import torch
 import pandas as pd
 import numpy as np
 
+import __init__
+
 from typing import Type
 from torchvision import transforms
 from torch.utils.tensorboard import SummaryWriter
 
 from model import Generator, Discriminator
 from cfg import *
+from BasicGANs.loss_functions import get_hinge_loss
+from BasicGANs.utils import write_logs
 
 
 class UnconditionalDataset(torch.utils.data.Dataset):
@@ -185,14 +189,7 @@ if __name__ == "__main__":
 
             optimizer_D.zero_grad()
 
-            D_x = net_D(real_batch, real_label).view(-1)
-            D_x = torch.nn.functional.relu(1.0 - D_x).mean()
-            D_x.backward()
-
-            fake_batch = net_G(noise_vector_1, fake_label_1)
-            D_G_z1 = net_D(fake_batch.detach(), fake_label_1).view(-1)
-            D_G_z1 = torch.nn.functional.relu(1.0 + D_G_z1).mean()
-            D_G_z1.backward()
+            D_x, D_G_z1 = get_hinge_loss(net_G, net_D, real_batch, real_label, noise_vector_1, fake_label_1)
 
             # Logging purposes
             if global_step % 10 == 0:
@@ -211,15 +208,10 @@ if __name__ == "__main__":
                 requires_grad(net_G, True)
                 requires_grad(net_D, False)
 
-                fake_batch_1 = net_G(noise_vector_2, fake_label_2)
-                D_G_z2 = net_D(fake_batch_1, fake_label_2).view(-1)
-
-                G_error = -D_G_z2.mean()
-
+                G_error = get_hinge_loss(net_G, net_D, noise_vector=noise_vector_2, fake_label=fake_label_2,
+                                         discriminator=False)
                 if global_step % 10 == 0:
                     generator_loss_value = G_error.item()
-
-                G_error.backward()
 
                 if orth_reg:
                     orthogonal_regularization(net_G.module)
@@ -234,12 +226,8 @@ if __name__ == "__main__":
                 requires_grad(net_D, True)
 
             if global_step % 100 == 0:
-                D_x = D_x.mean().item()
-                D_G_z1 = D_G_z1.mean().item()
-                tensorboard.add_scalar("G_LOSS", generator_loss_value, global_step)
-                tensorboard.add_scalar("D_LOSS", disc_loss_value, global_step)
-                tensorboard.add_scalar("D(X)", D_x, global_step)
-                tensorboard.add_scalar("D(G(Z))", D_G_z1, global_step)
+                write_logs({"G_Loss": generator_loss_value, "D_Loss": disc_loss_value, "D(X)": D_x.mean().item(),
+                            "D(G(Z))": D_G_z1.mean().item()}, tensorboard, global_step)
                 save_checkpoint(
                     os.path.join(log_folder, "checkpoints", "checkpoints.tar"),
                     net_G, net_D, optimizer_G, optimizer_D, averaged_G)

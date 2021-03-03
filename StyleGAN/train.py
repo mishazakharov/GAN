@@ -9,12 +9,16 @@ import torchvision
 
 import numpy as np
 
+import __init__
+
 from typing import Type
 from torchvision import transforms
 from torch.utils.tensorboard import SummaryWriter
 
 from model import StyleBasedGenerator, Discriminator
 from cfg import *
+from BasicGANs.loss_functions import get_wasserstein_loss
+from BasicGANs.utils import write_logs, generate_with_fixed_noise
 
 
 class UnconditionalDataset(torch.utils.data.Dataset):
@@ -208,28 +212,8 @@ if __name__ == "__main__":
             requires_grad(net_D, True)
             optimizer_D.zero_grad()
 
-            # D_x, D_G_z1, gradient_penalty = get_wasserstein_loss(net_G, net_D, real_batch, noise_vectors_1,
-            #                                                      progressive_growing_phase=pg_step, alpha=alpha)
-            D_x = net_D(real_batch, progressive_growing_phase=pg_step, alpha=alpha).view(-1)
-            D_x = D_x.mean() - 0.001 * (D_x ** 2).mean()
-            (-D_x).backward()
-
-            fake_batch = net_G(noise_vectors_1, progressive_growing_phase=pg_step, alpha=alpha)
-            D_G_z1 = net_D(fake_batch.detach(), progressive_growing_phase=pg_step, alpha=alpha).view(-1)
-            D_G_z1 = D_G_z1.mean()
-            D_G_z1.backward()
-
-            epsilon = torch.rand(batch_size, 1, 1, 1, device=device, requires_grad=True)
-            mixed_images = real_batch.data * epsilon + fake_batch.data * (1 - epsilon)
-            mixed_scores = net_D(mixed_images, progressive_growing_phase=pg_step, alpha=alpha)
-            gradient = torch.autograd.grad(
-                inputs=mixed_images,
-                outputs=mixed_scores.sum(),
-                create_graph=True,
-            )[0]
-            gradient_penalty = ((gradient.view(gradient.shape[0], -1).norm(2, dim=1) - 1) ** 2).mean()
-            gradient_penalty = 10 * gradient_penalty
-            gradient_penalty.backward()
+            D_x, D_G_z1, gradient_penalty = get_wasserstein_loss(net_G, net_D, real_batch, noise_vectors_1,
+                                                                 progressive_growing_phase=pg_step, alpha=alpha)
 
             # Logging purposes
             if global_step % 10 == 0:
@@ -246,17 +230,13 @@ if __name__ == "__main__":
                 requires_grad(net_G, True)
                 requires_grad(net_D, False)
 
-                # G_error, D_G_z2 = get_wasserstein_loss(net_G, net_D, noise_vectors_2, discriminator=False,
-                #                                        progressive_growing_phase=pg_step, alpha=alpha)
-                fake_batch_1 = net_G(noise_vectors_2, progressive_growing_phase=pg_step, alpha=alpha)
-                D_G_z2 = net_D(fake_batch_1, progressive_growing_phase=pg_step, alpha=alpha).view(-1)
-
-                G_error = -D_G_z2.mean()
+                G_error, D_G_z2 = get_wasserstein_loss(net_G, net_D, noise_vector=noise_vectors_2, discriminator=False,
+                                                       progressive_growing_phase=pg_step, alpha=alpha)
 
                 if global_step % 10 == 0:
                     generator_loss_value = G_error.item()
 
-                G_error.backward()
+                # G_error.backward()
 
                 # Update the weights
                 optimizer_G.step()
@@ -268,24 +248,16 @@ if __name__ == "__main__":
                 requires_grad(net_D, True)
 
             if global_step % 100 == 0:
-                D_x = D_x.mean().item()
-                D_G_z1 = D_G_z1.mean().item()
-                tensorboard.add_scalar("G_LOSS", generator_loss_value, global_step)
-                tensorboard.add_scalar("D_LOSS", disc_loss_value, global_step)
-                tensorboard.add_scalar("GP_LOSS", gp_loss_value, global_step)
-                tensorboard.add_scalar("D(X)", D_x, global_step)
-                tensorboard.add_scalar("D(G(Z))", D_G_z1, global_step)
+                write_logs({"G_Loss": generator_loss_value, "D_Loss": disc_loss_value, "GP_Loss": gp_loss_value,
+                            "D(X)": D_x.mean().item(), "D(G(Z))": D_G_z1.mean().item()}, tensorboard, global_step)
                 save_checkpoint(
                     os.path.join(log_folder, "checkpoints", "checkpoints.tar"),
                     net_G, net_D, optimizer_G, optimizer_D, averaged_G)
 
             # Check how the generator is doing by saving averaged G's output on fixed_noise
             if global_step % 500 == 0:
-                with torch.no_grad():
-                    fake_images = averaged_G(
-                        fixed_noise, progressive_growing_phase=pg_step, alpha=alpha).detach().cpu()
-
-                tensorboard.add_images("Generator state images", fake_images, global_step)
+                generate_with_fixed_noise(averaged_G, fixed_noise, tensorboard, global_step,
+                                          progressive_growing_phase=pg_step, alpha=alpha)
                 if global_step % 10_000 == 0:
                     save_weight(os.path.join(
                         log_folder, "SavedModels",

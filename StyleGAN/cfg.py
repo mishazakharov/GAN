@@ -4,7 +4,7 @@ import glob
 # General settings:
 data_path = glob.glob(
     "/home/misha/datasets/first_pages_passport_BIG/*.jpg")
-checkpoints_path = "/home/misha/GANCourse/StyleGAN/train_logs/PASSPORT_StyleGAN_training/checkpoints/final_ckpt_64x64_resolution.tar"
+checkpoints_path = "/home/misha/GAN/StyleGAN/train_logs/PASSPORT_StyleGAN_training/checkpoints/final_ckpt_64x64_resolution.tar"
 initial_image_size = 64
 maximum_image_size = 256
 log_folder = "train_logs/test_1"
