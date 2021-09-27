@@ -10,7 +10,7 @@ from torchvision import transforms
 from torch.utils.tensorboard import SummaryWriter
 
 from model_text_generation import Generator, Discriminator
-from dataset import TextGenerationDataset, CityScapesDataset
+from dataset import *
 from utils import save_weight, save_checkpoint, requires_grad
 from cfg import *
 
@@ -28,16 +28,16 @@ if __name__ == "__main__":
     tensorboard = SummaryWriter(
         os.path.join(log_folder, "tensorboard_logs"))
 
-    # dataset = PairedDataset(root_path, "train",
-    #                         transform=transforms.Compose([
-    #                             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]))
-    # eval_dataset = PairedDataset(root_path, "val")
-    dataset = TextGenerationDataset(root_path,
-                                    transform=transforms.Compose([
-                                        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]))
-    eval_dataset = TextGenerationDataset("/home/misha/datasets/passports_word_annotations/test_campaign/test_template/eval.csv",
-                                    transform=transforms.Compose([
-                                        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]))
+    dataset = CMPFacadeDataset(root_path,
+                               transform=transforms.Compose([
+                                   transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]))
+    eval_dataset = CMPFacadeDataset(root_path, "val")
+    # dataset = TextGenerationDataset(root_path,
+    #                                 transform=transforms.Compose([
+    #                                     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]))
+    # eval_dataset = TextGenerationDataset("/home/misha/datasets/passports_word_annotations/test_campaign/test_template/eval.csv",
+    #                                 transform=transforms.Compose([
+    #                                     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]))
 
     data_loader = torch.utils.data.DataLoader(
         dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers, drop_last=True)
@@ -55,7 +55,6 @@ if __name__ == "__main__":
 
     binary_CE = torch.nn.BCELoss()
     loss_L1 = torch.nn.L1Loss()
-
 
     fixed_sample = eval_data_loader.__iter__().__next__()
     fixed_images = fixed_sample["image"]

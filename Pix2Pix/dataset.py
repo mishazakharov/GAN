@@ -1,11 +1,17 @@
 import os
 import csv
+import random
 
 import cv2
 import glob
 import torch
 
 import numpy as np
+
+
+def show(image):
+    cv2.imshow("Image", image)
+    cv2.waitKey(0)
 
 
 class TextGenerationDataset(torch.utils.data.Dataset):
@@ -141,10 +147,90 @@ class CityScapesDataset(torch.utils.data.Dataset):
         return name_vector
 
 
-if __name__ == "__main__":
-    a = 1
-    dataset = TextGenerationDataset(
-        "/home/misha/datasets/passports_word_annotations/test_campaign/test_template/train.csv")
+class CMPFacadeDataset(torch.utils.data.Dataset):
+    """ CMP Facade Dataset reader
+    https://cmp.felk.cvut.cz/~tylecr1/facade/
+    """
+    image_extension = ".jpg"
+    label_extension = ".png"
 
+    def __init__(self, base_dir, mode="base", transform=None, segmentation_mask=False):
+        super().__init__()
+        self.base_dir = base_dir
+        self.mode = mode
+        self.transform = transform
+        self.segmentation_mask = segmentation_mask
+        self.name_vector = self._get_name_vector()
+
+    def __getitem__(self, index):
+        file_name = self.name_vector[index]
+        image_path = os.path.join(
+            self.base_dir, self.mode, file_name) + self.image_extension
+        label_path = os.path.join(
+            self.base_dir, self.mode, file_name) + self.label_extension
+        image = cv2.imread(image_path)
+        label_mask = cv2.imread(label_path)
+        image = cv2.resize(image, (256, 256), interpolation=cv2.INTER_LINEAR)
+        label_mask = cv2.resize(label_mask, (256, 256), interpolation=cv2.INTER_NEAREST)
+
+        image, label_mask = self._random_jitter(image, label_mask)
+
+        # random mirroring
+        if random.randint(0, 1):
+            image, label_mask = self._flip(image, label_mask)
+
+        image = torch.from_numpy(image).float().permute(2, 0, 1) / 255
+        label_mask = torch.from_numpy(label_mask).float().permute(2, 0, 1)
+
+        if self.transform:
+            image = self.transform(image)
+
+        sample = {"image": image, "label_mask": label_mask}
+
+        return sample
+
+    def __len__(self):
+        return self.name_vector.shape[0]
+
+    def _get_name_vector(self):
+        base_path = os.path.join(self.base_dir, self.mode, "*.png")
+        image_paths = glob.glob(base_path)
+        image_names = list(map(lambda string: os.path.basename(string).replace(".png", ""), image_paths))
+
+        return np.array(image_names)
+
+    def _random_jitter(self, image: np.ndarray,
+                     mask: np.ndarray,
+                     patch_h: int = 256,
+                     patch_w: int = 256):
+        image, mask = self._resize(image, mask, (286, 286))
+
+        max_x = image.shape[1] - patch_w
+        max_y = image.shape[0] - patch_h
+        if max_x == 0 or max_y == 0:
+            start_x = np.random.randint(0, 1)
+            start_y = np.random.randint(0, 1)
+        else:
+            start_x = np.random.randint(0, max_x)
+            start_y = np.random.randint(0, max_y)
+
+        cropped_image = image[start_y:start_y + patch_h, start_x:start_x + patch_w, :]
+        cropped_mask = mask[start_y:start_y + patch_h, start_x:start_x + patch_w]
+
+        return cropped_image, cropped_mask
+
+    def _flip(self, image: np.ndarray, mask: np.ndarray):
+        return cv2.flip(image, 1), cv2.flip(mask, 1)
+
+    def _resize(self, image, mask, size):
+        image = cv2.resize(image, size, interpolation=cv2.INTER_LINEAR)
+        mask = cv2.resize(mask, size, interpolation=cv2.INTER_NEAREST)
+
+        return image, mask
+
+
+if __name__ == "__main__":
+
+    dataset = CMPFacadeDataset("../datasets/CMP_facade_DB_base")
     for sample in dataset:
-        pass
+        a = 1
