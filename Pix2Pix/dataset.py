@@ -91,16 +91,14 @@ class CityScapesDataset(torch.utils.data.Dataset):
     """
     annotations_path = "gtFine_trainvaltest/gtFine"
     images_path = "leftImg8bit_trainvaltest/leftImg8bit"
-    segmentation_mask_postfix = "_gtFine_color"
-    label_mask_postfix = "_gtFine_labelIds"
+    label_mask_postfix = "_gtFine_color"
 
-    def __init__(self, root_path, mode="train", transform=None, segmentation_mask=False):
+    def __init__(self, root_path, mode="train", transform=None):
         super().__init__()
         self.root_path = root_path
         self.mode = mode
         self.transform = transform
-        self.segmentation_mask = segmentation_mask
-        self.name_vector = self.__get_name_vector()
+        self.name_vector = self._get_name_vector()
 
     def __getitem__(self, index):
         file_name = self.name_vector[index]
@@ -113,15 +111,14 @@ class CityScapesDataset(torch.utils.data.Dataset):
         image = cv2.imread(image_path)
         label_mask = cv2.imread(label_path)
 
-        if self.segmentation_mask:
-            segmentation_name = '_'.join(file_name.split('_')[:-1]) + self.segmentation_mask_postfix
-            segmentation_path = os.path.join(
-                self.root_path, self.annotations_path, self.mode, folder, segmentation_name) + ".png"
-            segmentation_mask = cv2.imread(segmentation_path)
-            segmentation_mask = cv2.resize(segmentation_mask, (256, 256))
-
         image = cv2.resize(image, (256, 256), interpolation=cv2.INTER_LINEAR)
         label_mask = cv2.resize(label_mask, (256, 256), interpolation=cv2.INTER_NEAREST)
+
+        image, label_mask = random_jitter(image, label_mask)
+
+        # random mirroring
+        if random.randint(0, 1):
+            image, label_mask = flip(image, label_mask)
 
         image = torch.from_numpy(image).float().permute(2, 0, 1) / 255
         label_mask = torch.from_numpy(label_mask).float().permute(2, 0, 1)
@@ -130,15 +127,13 @@ class CityScapesDataset(torch.utils.data.Dataset):
             image = self.transform(image)
 
         sample = {"image": image, "label_mask": label_mask}
-        if self.segmentation_mask:
-            sample["segmentation_mask"] = segmentation_mask
 
         return sample
 
     def __len__(self):
         return self.name_vector.shape[0]
 
-    def __get_name_vector(self):
+    def _get_name_vector(self):
         base_path = os.path.join(self.root_path, self.images_path, self.mode, "*/*.png")
         images_pathes = glob.glob(base_path)
         images_names = list(map(lambda string: os.path.split(string)[-1].split('.')[0], images_pathes))
@@ -173,11 +168,11 @@ class CMPFacadeDataset(torch.utils.data.Dataset):
         image = cv2.resize(image, (256, 256), interpolation=cv2.INTER_LINEAR)
         label_mask = cv2.resize(label_mask, (256, 256), interpolation=cv2.INTER_NEAREST)
 
-        image, label_mask = self._random_jitter(image, label_mask)
+        image, label_mask = random_jitter(image, label_mask)
 
         # random mirroring
         if random.randint(0, 1):
-            image, label_mask = self._flip(image, label_mask)
+            image, label_mask = flip(image, label_mask)
 
         image = torch.from_numpy(image).float().permute(2, 0, 1) / 255
         label_mask = torch.from_numpy(label_mask).float().permute(2, 0, 1)
@@ -199,34 +194,37 @@ class CMPFacadeDataset(torch.utils.data.Dataset):
 
         return np.array(image_names)
 
-    def _random_jitter(self, image: np.ndarray,
-                     mask: np.ndarray,
-                     patch_h: int = 256,
-                     patch_w: int = 256):
-        image, mask = self._resize(image, mask, (286, 286))
 
-        max_x = image.shape[1] - patch_w
-        max_y = image.shape[0] - patch_h
-        if max_x == 0 or max_y == 0:
-            start_x = np.random.randint(0, 1)
-            start_y = np.random.randint(0, 1)
-        else:
-            start_x = np.random.randint(0, max_x)
-            start_y = np.random.randint(0, max_y)
+def random_jitter(image: np.ndarray,
+                 mask: np.ndarray,
+                 patch_h: int = 256,
+                 patch_w: int = 256):
+    image, mask = resize(image, mask, (286, 286))
 
-        cropped_image = image[start_y:start_y + patch_h, start_x:start_x + patch_w, :]
-        cropped_mask = mask[start_y:start_y + patch_h, start_x:start_x + patch_w]
+    max_x = image.shape[1] - patch_w
+    max_y = image.shape[0] - patch_h
+    if max_x == 0 or max_y == 0:
+        start_x = np.random.randint(0, 1)
+        start_y = np.random.randint(0, 1)
+    else:
+        start_x = np.random.randint(0, max_x)
+        start_y = np.random.randint(0, max_y)
 
-        return cropped_image, cropped_mask
+    cropped_image = image[start_y:start_y + patch_h, start_x:start_x + patch_w, :]
+    cropped_mask = mask[start_y:start_y + patch_h, start_x:start_x + patch_w]
 
-    def _flip(self, image: np.ndarray, mask: np.ndarray):
-        return cv2.flip(image, 1), cv2.flip(mask, 1)
+    return cropped_image, cropped_mask
 
-    def _resize(self, image, mask, size):
-        image = cv2.resize(image, size, interpolation=cv2.INTER_LINEAR)
-        mask = cv2.resize(mask, size, interpolation=cv2.INTER_NEAREST)
 
-        return image, mask
+def flip(image: np.ndarray, mask: np.ndarray):
+    return cv2.flip(image, 1), cv2.flip(mask, 1)
+
+
+def resize(image, mask, size):
+    image = cv2.resize(image, size, interpolation=cv2.INTER_LINEAR)
+    mask = cv2.resize(mask, size, interpolation=cv2.INTER_NEAREST)
+
+    return image, mask
 
 
 if __name__ == "__main__":
