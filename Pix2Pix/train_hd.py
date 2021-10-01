@@ -32,10 +32,10 @@ if __name__ == "__main__":
     #                         transform=transforms.Compose([
     #                             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]))
     # eval_dataset = PairedDataset(root_path, "val")
-    dataset = TextGenerationDataset(root_path,
+    dataset = CityScapesDataset(root_path,
                                     transform=transforms.Compose([
                                         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]))
-    eval_dataset = TextGenerationDataset("/home/misha/datasets/passports_word_annotations/test_campaign/test_template/eval.csv",
+    eval_dataset = CityScapesDataset(root_path,
                                     transform=transforms.Compose([
                                         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]))
 
@@ -55,7 +55,6 @@ if __name__ == "__main__":
 
     binary_CE = torch.nn.BCELoss()
     loss_L1 = torch.nn.L1Loss()
-
 
     fixed_sample = eval_data_loader.__iter__().__next__()
     fixed_images = fixed_sample["image"]
@@ -125,22 +124,26 @@ if __name__ == "__main__":
                 requires_grad(net_G, False)
                 requires_grad(net_D, True)
 
-            if global_step % 100 == 0:
+            if global_step % log_step == 0:
                 tensorboard.add_scalar("G_LOSS", generator_loss_value, global_step)
                 tensorboard.add_scalar("D_LOSS", disc_loss_value, global_step)
                 save_checkpoint(
                     os.path.join(log_folder, "checkpoints", "checkpoints.tar"), net_G, net_D, optimizer_G, optimizer_D)
 
             # Check how the generator is doing by saving averaged G's output on fixed_noise
-            if global_step % 500 == 0:
+            if global_step % val_step == 0:
                 with torch.no_grad():
                     fake_images = net_G(fixed_labels).detach().cpu()
+                    # Shift value range from [-1, 1] to [0, 1]
+                    fake_images = fake_images * 0.5 + 0.5
+                    # Tensorboard expects RGB images
+                    fake_images = torch.flip(fake_images, [1])
 
                 tensorboard.add_images("Generator state images", fake_images, global_step)
-                if global_step % 10_000 == 0:
-                    save_weight(os.path.join(
-                        log_folder, "SavedModels",
-                        "Weights_"+ str(global_step) + ".pth"), net_G)
+            if global_step % save_step == 0:
+                save_weight(os.path.join(
+                    log_folder, "SavedModels",
+                    "Weights_"+ str(global_step) + ".pth"), net_G)
 
             log_info = f"GLoss: {generator_loss_value:.3f}; DLoss: {disc_loss_value:.3f};"
             stdout.set_description(log_info)

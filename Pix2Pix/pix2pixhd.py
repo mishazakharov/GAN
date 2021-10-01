@@ -82,9 +82,9 @@ class Discriminator(torch.nn.Module):
         self.batch_norm_1 = torch.nn.BatchNorm2d(ch * 2)
         self.conv_3 = torch.nn.Conv2d(ch * 2, ch * 4, 4, 2, 1)
         self.batch_norm_2 = torch.nn.BatchNorm2d(ch * 4)
-        self.conv_4 = torch.nn.Conv2d(ch * 4, ch * 8, (1, 4), 1, (0, 1))
+        self.conv_4 = torch.nn.Conv2d(ch * 4, ch * 8, 4, 1, 1)
         self.batch_norm_3 = torch.nn.BatchNorm2d(ch * 8)
-        self.conv_5 = torch.nn.Conv2d(ch * 8, 1, (1, 4), 1, (0, 1))
+        self.conv_5 = torch.nn.Conv2d(ch * 8, 1, 4, 1, 1)
 
     def forward(self, x, y, return_features=False):
         output_1 = torch.nn.functional.relu(self.conv_1(torch.cat((x, y), dim=1)))
@@ -100,8 +100,8 @@ class Discriminator(torch.nn.Module):
 
 
 if __name__ == "__main__":
-    dummy_input = torch.rand(1, 3, 64, 512)
-    dummy_label = torch.rand(1, 3, 64, 512)
+    dummy_input = torch.rand(1, 3, 512, 512)
+    dummy_label = torch.rand(1, 3, 512, 512)
     model = Generator()
     disc = Discriminator()
     print(sum([p.numel() for p in model.parameters() if p.requires_grad]))
