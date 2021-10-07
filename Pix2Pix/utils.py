@@ -43,3 +43,8 @@ def save_weight(path: str, net_G: torch.nn.Module):
 def requires_grad(model: torch.nn.Module, flag: bool = True):
     for p in model.parameters():
         p.requires_grad = flag
+
+
+def load_weights(path, model):
+    weights = torch.load(path, map_locatioin="cpu")
+    model.load_state_dict(weights)

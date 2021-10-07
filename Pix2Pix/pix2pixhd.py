@@ -2,7 +2,7 @@ import torch
 
 
 # TODO: finish this for text generation task
-class Generator(torch.nn.Module):
+class GeneratorHD(torch.nn.Module):
 
     """ Class for global generator network from Pix2PixHD paper
 
@@ -99,10 +99,11 @@ class Discriminator(torch.nn.Module):
             return torch.nn.functional.sigmoid(output_5), [output_1, output_2, output_3, output_4, output_5]
 
 
+# TODO: get rid of this file!
 if __name__ == "__main__":
-    dummy_input = torch.rand(1, 3, 512, 512)
-    dummy_label = torch.rand(1, 3, 512, 512)
-    model = Generator()
+    dummy_input = torch.rand(1, 3, 256, 256)
+    dummy_label = torch.rand(1, 3, 256, 256)
+    model = GeneratorHD()
     disc = Discriminator()
     print(sum([p.numel() for p in model.parameters() if p.requires_grad]))
     output = model(dummy_input)

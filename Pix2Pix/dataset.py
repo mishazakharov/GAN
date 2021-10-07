@@ -8,12 +8,63 @@ import torch
 
 import numpy as np
 
+from torchvision import transforms
+
 
 def show(image):
     cv2.imshow("Image", image)
     cv2.waitKey(0)
 
 
+class Pix2PixDataset(torch.utils.data.Dataset):
+    """ General dataset for supervised image-to-image translation.
+
+    Data format: base_dir/source_domain_dir/(train, eval, test)/*.image_extension
+                 base_dir/target_domain_dir/(train, eval, test)/*.label_extension
+    """
+
+    image_extension = ".jpg"
+    label_extension = ".png"
+    source_domain_dir = "X"
+    target_domain_dir = "Y"
+
+    def __init__(self, base_dir, mode="train", transform=None):
+        super().__init__()
+        self.base_dir = base_dir
+        self.mode = mode
+        self.transform = transform
+        self.name_vector = self._get_names()
+
+    def __getitem__(self, index):
+        filename = self.name_vector[index]
+        image_path = os.path.join(
+            self.base_dir, self.source_domain_dir, self.mode, filename) + self.image_extension
+        label_path = os.path.join(
+            self.base_dir, self.target_domain_dir, self.mode, filename) + self.label_extension
+        image = cv2.imread(image_path)
+        label_mask = cv2.imread(label_path)
+
+        sample = {"image": image, "label_mask": label_mask}
+
+        if self.transform:
+            sample = self.transform(sample)
+
+        return sample
+
+    def __len__(self):
+        return self.name_vector.shape[0]
+
+    def _get_names(self):
+        filename = "".join(["*", os.extsep, self.image_extension])
+        base_path = os.path.join(self.base_dir, self.source_domain_dir, self.mode, filename)
+        image_paths = glob.glob(base_path)
+        image_names = list(map(lambda string: os.path.basename(string).replace(
+            "".join([os.extsep,self.image_extension]), ""), image_paths))
+
+        return np.array(image_names)
+
+
+# TODO: get rid of this one!
 class TextGenerationDataset(torch.utils.data.Dataset):
 
     """ Class for general domain specific text generation via Pix2Pix framework!
@@ -111,18 +162,6 @@ class CityScapesDataset(torch.utils.data.Dataset):
         image = cv2.imread(image_path)
         label_mask = cv2.imread(label_path)
 
-        image = cv2.resize(image, (256, 256), interpolation=cv2.INTER_LINEAR)
-        label_mask = cv2.resize(label_mask, (256, 256), interpolation=cv2.INTER_NEAREST)
-
-        image, label_mask = random_jitter(image, label_mask)
-
-        # random mirroring
-        if random.randint(0, 1):
-            image, label_mask = flip(image, label_mask)
-
-        image = torch.from_numpy(image).float().permute(2, 0, 1) / 255
-        label_mask = torch.from_numpy(label_mask).float().permute(2, 0, 1)
-
         if self.transform:
             image = self.transform(image)
 
@@ -149,12 +188,11 @@ class CMPFacadeDataset(torch.utils.data.Dataset):
     image_extension = ".jpg"
     label_extension = ".png"
 
-    def __init__(self, base_dir, mode="base", transform=None, segmentation_mask=False):
+    def __init__(self, base_dir, mode="base", transform=None):
         super().__init__()
         self.base_dir = base_dir
         self.mode = mode
         self.transform = transform
-        self.segmentation_mask = segmentation_mask
         self.name_vector = self._get_name_vector()
 
     def __getitem__(self, index):
@@ -165,22 +203,11 @@ class CMPFacadeDataset(torch.utils.data.Dataset):
             self.base_dir, self.mode, file_name) + self.label_extension
         image = cv2.imread(image_path)
         label_mask = cv2.imread(label_path)
-        image = cv2.resize(image, (256, 256), interpolation=cv2.INTER_LINEAR)
-        label_mask = cv2.resize(label_mask, (256, 256), interpolation=cv2.INTER_NEAREST)
-
-        image, label_mask = random_jitter(image, label_mask)
-
-        # random mirroring
-        if random.randint(0, 1):
-            image, label_mask = flip(image, label_mask)
-
-        image = torch.from_numpy(image).float().permute(2, 0, 1) / 255
-        label_mask = torch.from_numpy(label_mask).float().permute(2, 0, 1)
-
-        if self.transform:
-            image = self.transform(image)
 
         sample = {"image": image, "label_mask": label_mask}
+
+        if self.transform:
+            sample = self.transform(sample)
 
         return sample
 
@@ -195,29 +222,93 @@ class CMPFacadeDataset(torch.utils.data.Dataset):
         return np.array(image_names)
 
 
-def random_jitter(image: np.ndarray,
-                 mask: np.ndarray,
-                 patch_h: int = 256,
-                 patch_w: int = 256):
-    image, mask = resize(image, mask, (286, 286))
+class Resize(object):
 
-    max_x = image.shape[1] - patch_w
-    max_y = image.shape[0] - patch_h
-    if max_x == 0 or max_y == 0:
-        start_x = np.random.randint(0, 1)
-        start_y = np.random.randint(0, 1)
-    else:
-        start_x = np.random.randint(0, max_x)
-        start_y = np.random.randint(0, max_y)
+    def __init__(self, size):
+        self.size = size
 
-    cropped_image = image[start_y:start_y + patch_h, start_x:start_x + patch_w, :]
-    cropped_mask = mask[start_y:start_y + patch_h, start_x:start_x + patch_w]
+    def __call__(self, sample):
+        image, mask = sample["image"], sample["label_mask"]
+        image, mask = resize(image, mask, self.size)
 
-    return cropped_image, cropped_mask
+        return {"image": image, "label_mask": mask}
 
 
-def flip(image: np.ndarray, mask: np.ndarray):
-    return cv2.flip(image, 1), cv2.flip(mask, 1)
+class ToTensor(object):
+
+    def __call__(self, sample):
+        image = torch.from_numpy(sample["image"]).float().permute(2, 0, 1) / 255.0
+        label_mask = torch.from_numpy(sample["label_mask"]).float().permute(2, 0, 1)
+
+        return {"image": image, "label_mask": label_mask}
+
+
+class Normalize(object):
+
+    def __init__(self, mean, std):
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, sample):
+        image, mask = sample["image"], sample["label_mask"]
+        image = transforms.functional.normalize(image, self.mean, self.std)
+
+        return {"image": image, "label_mask": mask}
+
+
+class Augmentations(object):
+
+    jitter_coef = 1.1171875  # from pix2pix paper (286 / 256)
+    no_augmentation_string = "noaug"
+
+    def __init__(self, augs):
+        self.augmentations = augs + [self.no_augmentation_string]
+        self.n_augs = len(self.augmentations)
+        self.handler = {
+            self.no_augmentation_string: self._noaug,
+            "flip": self._flip
+        }
+
+    def __call__(self, sample):
+        image, label_mask = sample["image"], sample["label_mask"]
+        # Always apply random jitter!
+        image, label_mask = self._random_jitter(image, label_mask, patch_h=image.shape[0], patch_w=image.shape[1])
+        if self.n_augs > 1:
+            aug_index = random.randrange(0, self.n_augs)
+            augmentation = self.augmentations[aug_index]
+            image, label_mask = self.handler[augmentation](image, label_mask)
+
+        return {"image": image, "label_mask": label_mask}
+
+    def _random_jitter(self, image: np.ndarray, mask: np.ndarray, patch_h: int = 256, patch_w: int = 256):
+        jitter_size = tuple(map(lambda x: int(x * self.jitter_coef), (patch_w, patch_h)))
+        image, mask = resize(image, mask, jitter_size)
+
+        max_x = image.shape[1] - patch_w
+        max_y = image.shape[0] - patch_h
+        if max_x == 0 or max_y == 0:
+            start_x = np.random.randint(0, 1)
+            start_y = np.random.randint(0, 1)
+        else:
+            start_x = np.random.randint(0, max_x)
+            start_y = np.random.randint(0, max_y)
+
+        cropped_image = image[start_y:start_y + patch_h, start_x:start_x + patch_w, :]
+        cropped_mask = mask[start_y:start_y + patch_h, start_x:start_x + patch_w]
+
+        return cropped_image, cropped_mask
+
+    def _flip(self, image: np.ndarray, mask: np.ndarray):
+        return cv2.flip(image, 1), cv2.flip(mask, 1)
+
+    def _resize(self, image, mask, size):
+        image = cv2.resize(image, size, interpolation=cv2.INTER_LINEAR)
+        mask = cv2.resize(mask, size, interpolation=cv2.INTER_NEAREST)
+
+        return image, mask
+
+    def _noaug(self, image, mask):
+        return image, mask
 
 
 def resize(image, mask, size):

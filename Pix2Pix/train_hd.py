@@ -15,6 +15,7 @@ from utils import save_weight, save_checkpoint, requires_grad
 from cfg import *
 
 
+# TODO: get rid of this file!
 if __name__ == "__main__":
     # For reproducibility
     random.seed(seed)

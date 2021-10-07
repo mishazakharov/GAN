@@ -5,26 +5,21 @@ import numpy as np
 
 from torchvision import transforms
 
-from dataset import *
-# from pix2pixhd import Generator
-from utils import tensor_to_image, show_image
-from cfg import *
-from models import Generator
+from train import *
 
 
-dataset = CMPFacadeDataset(root_path,
-                           "val",
-                           transform=transforms.Compose([
-                               transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]))
-# dataset = TextGenerationDataset("/home/misha/datasets/passports_word_annotations/test_campaign/test_template/eval.csv",
-#                                 transform=transforms.Compose([
-#                                     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]))
+if __name__ == "__main__":
+    dataset_type = dataset_types.get(DATASET_TYPE, None)
+    if dataset_type is None:
+        raise Exception
 
-model_path = "/Users/misha_zakharov96/GAN/Pix2Pix/train_logs/Weights_230000.pth"
-weights = torch.load(model_path, map_location="cpu")
+    eval_dataset = dataset_type(ROOT_PATH, mode="val",
+                                transform=transforms.Compose([Resize(SIZE)
+                                                              ]))
+
 net_G = Generator()
-net_G.load_state_dict(weights)
-net_G.eval()
+load_weights(TEST_WEIGHTS, net_G)
+net_G.to(DEVICE)
 
 with torch.no_grad():
     for sample in dataset:

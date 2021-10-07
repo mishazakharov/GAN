@@ -1,16 +1,25 @@
-device = "cuda:0"
-batch_size = 2
-lmbd = 100
-beta_1 = 0.5
-beta_2 = 0.999
-disc_repeats = 1
-lr_G = 0.0002
-lr_D = 0.0002
-num_workers = 0
-num_images = 10
-seed = 5000
-log_step = 100
-val_step = 1
-save_step = 10_000
-log_folder = "train_logs/test"
-root_path = "../datasets/CMP_facade_DB_base"
+# TODO: re-do this file!
+DEVICE = "cpu"
+BATCH_SIZE = 2
+LMBD = 100
+BETA_1 = 0.5
+BETA_2 = 0.999
+DISC_REPEATS = 1
+LR_G = 0.0002
+LR_D = 0.0002
+NUM_WORKERS = 0
+NUM_IMAGES = 10
+SEED = 5000
+LOG_STEP = 100
+VAL_STEP = 1
+SAVE_STEP = 10_000
+LOG_FOLDER = "train_logs/test"
+ROOT_PATH = "../datasets/CMP_facade_DB_base"
+
+DATASET_TYPE = "CMPFacade"
+AUGS = []
+SIZE = (256, 256)
+
+TEST_WEIGHTS = ""
+MODEL_TYPE = "Pix2Pix"
+FEATURE_MATCHING_LOSS = False
