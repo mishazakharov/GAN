@@ -54,7 +54,7 @@ class Generator(torch.nn.Module):
 
 
 class Discriminator(torch.nn.Module):
-    def __init__(self, image_dim, hidden_dim, resolution=128):
+    def __init__(self, image_dim, hidden_dim, resolution=128, is_wgan=False):
         super(Discriminator, self).__init__()
         # Previous version had 12 after 8
         layers = list()
@@ -77,18 +77,20 @@ class Discriminator(torch.nn.Module):
 
             layers.append(self._create_layer(int(hidden_dim * coeff_input),
                                              int(hidden_dim * coeff_output), stride=stride,
-                                             padding=padding, is_last=is_last, is_first=is_first))
+                                             padding=padding, is_last=is_last, is_first=is_first,
+                                             is_wgan=is_wgan))
 
         self.main = torch.nn.Sequential(*layers)
 
     def forward(self, x):
         return self.main(x)
 
-    def _create_layer(self, in_dim, out_dim, stride=2, padding=1, is_last=False, is_first=False):
+    def _create_layer(self, in_dim, out_dim, stride=2, padding=1, is_last=False, is_first=False, is_wgan=False):
         ops = [torch.nn.Conv2d(in_dim, out_dim, 4, stride, padding, bias=False)]
         if not is_last and not is_first:
-            ops += [torch.nn.BatchNorm2d(out_dim), torch.nn.LeakyReLU(0.2, inplace=True)]
-        elif is_last:
+            norm_op = torch.nn.BatchNorm2d if not is_wgan else torch.nn.InstanceNorm2d
+            ops += [norm_op(out_dim), torch.nn.LeakyReLU(0.2, inplace=True)]
+        elif is_last and not is_wgan:
             ops += [torch.nn.Sigmoid()]
         elif is_first:
             ops += [torch.nn.LeakyReLU(0.2, inplace=True)]
@@ -103,7 +105,7 @@ if __name__ == "__main__":
     batch_size = 128
     # Spatial size of training images. All images will be resized to this
     #   size using a transformer.
-    image_size = (128, 128)
+    image_size = (64, 64)
     # Number of channels in the training images. For color images this is 3
     image_dim = 3
     # Size of z latent vector (i.e. size of generator input)

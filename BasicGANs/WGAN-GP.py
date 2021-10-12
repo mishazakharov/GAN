@@ -13,93 +13,94 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from utils import *
+from DCGAN import Generator, Discriminator
 from loss_functions import get_wasserstein_loss
 
 
-class Generator(nn.Module):
-
-    def __init__(self, z_dim, hidden_dim, image_dim=3):
-        super(Generator, self).__init__()
-        self.first_block = self.generate_upsample_block(z_dim, hidden_dim * 8, 4, 1, 0)
-        self.second_block = self.generate_upsample_block(hidden_dim * 8, hidden_dim * 4, 4, 2, 1)
-        self.third_block = self.generate_upsample_block(hidden_dim * 4, hidden_dim * 2, 4, 2, 1)
-        self.fourth_block = self.generate_upsample_block(hidden_dim * 2, hidden_dim * 1, 4, 2, 1)
-        self.fifth_block = self.generate_upsample_block(hidden_dim * 1, hidden_dim // 2, 4, 2, 1)
-        self.sixth_block = self.generate_upsample_block(hidden_dim // 2, hidden_dim // 4, 4, 2, 1)
-        self.seventh_block = self.generate_upsample_block(hidden_dim // 4, hidden_dim // 8, 4, (1, 2), 1)
-        self.eighth_block = self.generate_upsample_block(hidden_dim // 8, image_dim, 4, (1, 2), 1, last=True)
-        self.pool = torch.nn.AdaptiveAvgPool2d((128, 512))
-
-    def forward(self, noise_vector):
-        output = self.first_block(noise_vector)
-        output = self.second_block(output)
-        output = self.third_block(output)
-        output = self.fourth_block(output)
-        output = self.fifth_block(output)
-        output = self.sixth_block(output)
-        output = self.seventh_block(output)
-        output = self.eighth_block(output)
-        output = self.pool(output)
-
-        return output
-
-    def generate_upsample_block(self, input_dim, output_dim, *args, last=False):
-        if last:
-            return torch.nn.Sequential(
-                torch.nn.ConvTranspose2d(input_dim, output_dim, *args, bias=False),
-                torch.nn.Tanh()
-            )
-
-        return torch.nn.Sequential(
-            torch.nn.ConvTranspose2d(input_dim, output_dim, *args, bias=False),
-            torch.nn.BatchNorm2d(output_dim),
-            torch.nn.ReLU(True)
-        )
-
-
-class Discriminator(torch.nn.Module):
-
-    def __init__(self, image_dim, hidden_dim):
-        super().__init__()
-        self.first_block = self.generate_downsample_block(image_dim, hidden_dim, 4, 2, 1, first=True)
-        self.second_block = self.generate_downsample_block(hidden_dim, hidden_dim * 2, 4, 2, 1)
-        self.third_block = self.generate_downsample_block(hidden_dim * 2, hidden_dim * 4, 4, 2, 1)
-        self.fourth_block = self.generate_downsample_block(hidden_dim * 4, hidden_dim * 8, 4, 2, 1)
-        self.fifth_block = self.generate_downsample_block(hidden_dim * 8, hidden_dim * 12, 4, 2, 1)
-        self.sixth_block = self.generate_downsample_block(hidden_dim * 12, hidden_dim * 8, 4, 2, 1)
-        self.seventh_block = self.generate_downsample_block(hidden_dim * 8, hidden_dim * 6, 4, 2, 1)
-        self.eighth_block = self.generate_downsample_block(hidden_dim * 6, 1, (1, 4), 1, 0, last=True)
-
-    def forward(self, x):
-        output = self.first_block(x)
-        output = self.second_block(output)
-        output = self.third_block(output)
-        output = self.fourth_block(output)
-        output = self.fifth_block(output)
-        output = self.sixth_block(output)
-        output = self.seventh_block(output)
-        output = self.eighth_block(output)
-
-        return output
-
-    def generate_downsample_block(self, input_dim, output_dim, *args, first=False, last=False):
-        # No BatchNorm2d!
-        if not first and not last:
-            return torch.nn.Sequential(
-                torch.nn.Conv2d(input_dim, output_dim, *args, bias=False),
-                torch.nn.InstanceNorm2d(output_dim, affine=True),
-                torch.nn.LeakyReLU(0.2, inplace=True)
-            )
-        elif first:
-            return torch.nn.Sequential(
-                torch.nn.Conv2d(input_dim, output_dim, *args, bias=False),
-                torch.nn.LeakyReLU(0.2, inplace=True)
-            )
-        elif last:
-            # No SIGMOID!
-            return torch.nn.Sequential(
-                torch.nn.Conv2d(input_dim, output_dim, *args, bias=False),
-            )
+# class Generator(nn.Module):
+#
+#     def __init__(self, z_dim, hidden_dim, image_dim=3):
+#         super(Generator, self).__init__()
+#         self.first_block = self.generate_upsample_block(z_dim, hidden_dim * 8, 4, 1, 0)
+#         self.second_block = self.generate_upsample_block(hidden_dim * 8, hidden_dim * 4, 4, 2, 1)
+#         self.third_block = self.generate_upsample_block(hidden_dim * 4, hidden_dim * 2, 4, 2, 1)
+#         self.fourth_block = self.generate_upsample_block(hidden_dim * 2, hidden_dim * 1, 4, 2, 1)
+#         self.fifth_block = self.generate_upsample_block(hidden_dim * 1, hidden_dim // 2, 4, 2, 1)
+#         self.sixth_block = self.generate_upsample_block(hidden_dim // 2, hidden_dim // 4, 4, 2, 1)
+#         self.seventh_block = self.generate_upsample_block(hidden_dim // 4, hidden_dim // 8, 4, (1, 2), 1)
+#         self.eighth_block = self.generate_upsample_block(hidden_dim // 8, image_dim, 4, (1, 2), 1, last=True)
+#         self.pool = torch.nn.AdaptiveAvgPool2d((128, 512))
+#
+#     def forward(self, noise_vector):
+#         output = self.first_block(noise_vector)
+#         output = self.second_block(output)
+#         output = self.third_block(output)
+#         output = self.fourth_block(output)
+#         output = self.fifth_block(output)
+#         output = self.sixth_block(output)
+#         output = self.seventh_block(output)
+#         output = self.eighth_block(output)
+#         output = self.pool(output)
+#
+#         return output
+#
+#     def generate_upsample_block(self, input_dim, output_dim, *args, last=False):
+#         if last:
+#             return torch.nn.Sequential(
+#                 torch.nn.ConvTranspose2d(input_dim, output_dim, *args, bias=False),
+#                 torch.nn.Tanh()
+#             )
+#
+#         return torch.nn.Sequential(
+#             torch.nn.ConvTranspose2d(input_dim, output_dim, *args, bias=False),
+#             torch.nn.BatchNorm2d(output_dim),
+#             torch.nn.ReLU(True)
+#         )
+#
+#
+# class Discriminator(torch.nn.Module):
+#
+#     def __init__(self, image_dim, hidden_dim):
+#         super().__init__()
+#         self.first_block = self.generate_downsample_block(image_dim, hidden_dim, 4, 2, 1, first=True)
+#         self.second_block = self.generate_downsample_block(hidden_dim, hidden_dim * 2, 4, 2, 1)
+#         self.third_block = self.generate_downsample_block(hidden_dim * 2, hidden_dim * 4, 4, 2, 1)
+#         self.fourth_block = self.generate_downsample_block(hidden_dim * 4, hidden_dim * 8, 4, 2, 1)
+#         self.fifth_block = self.generate_downsample_block(hidden_dim * 8, hidden_dim * 12, 4, 2, 1)
+#         self.sixth_block = self.generate_downsample_block(hidden_dim * 12, hidden_dim * 8, 4, 2, 1)
+#         self.seventh_block = self.generate_downsample_block(hidden_dim * 8, hidden_dim * 6, 4, 2, 1)
+#         self.eighth_block = self.generate_downsample_block(hidden_dim * 6, 1, (1, 4), 1, 0, last=True)
+#
+#     def forward(self, x):
+#         output = self.first_block(x)
+#         output = self.second_block(output)
+#         output = self.third_block(output)
+#         output = self.fourth_block(output)
+#         output = self.fifth_block(output)
+#         output = self.sixth_block(output)
+#         output = self.seventh_block(output)
+#         output = self.eighth_block(output)
+#
+#         return output
+#
+#     def generate_downsample_block(self, input_dim, output_dim, *args, first=False, last=False):
+#         # No BatchNorm2d!
+#         if not first and not last:
+#             return torch.nn.Sequential(
+#                 torch.nn.Conv2d(input_dim, output_dim, *args, bias=False),
+#                 torch.nn.InstanceNorm2d(output_dim, affine=True),
+#                 torch.nn.LeakyReLU(0.2, inplace=True)
+#             )
+#         elif first:
+#             return torch.nn.Sequential(
+#                 torch.nn.Conv2d(input_dim, output_dim, *args, bias=False),
+#                 torch.nn.LeakyReLU(0.2, inplace=True)
+#             )
+#         elif last:
+#             # No SIGMOID!
+#             return torch.nn.Sequential(
+#                 torch.nn.Conv2d(input_dim, output_dim, *args, bias=False),
+#             )
 
 
 if __name__ == "__main__":
@@ -109,7 +110,7 @@ if __name__ == "__main__":
     # Batch size during training
     batch_size = 32
     # Spatial size of training images
-    image_size = (512, 128)
+    image_size = (64, 64)
     # Number of channels in the training images. For color images this is 3
     image_dim = 3
     # Size of z latent vector (i.e. size of generator input)
@@ -122,7 +123,7 @@ if __name__ == "__main__":
     beta_1 = 0
     beta_2 = 0.9
     c_lambda = 10
-    disc_repeats = 1  # 5
+    disc_repeats = 5
     device = "cuda:0"
     seed = 5000
 
@@ -140,10 +141,10 @@ if __name__ == "__main__":
                             transform=transforms.Compose([transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]))
     data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0)
 
-    net_G = Generator(z_dim, hidden_dim, image_dim).to(device)
+    net_G = Generator(z_dim, hidden_dim, image_dim, resolution=image_size[0]).to(device)
     net_G.apply(weights_init)
 
-    net_D = Discriminator(image_dim, hidden_dim).to(device)
+    net_D = Discriminator(image_dim, hidden_dim, resolution=image_size[0], is_wgan=True).to(device)
     net_D.apply(weights_init)
 
     disc_params = sum([p.numel() for p in net_D.parameters() if p.requires_grad])

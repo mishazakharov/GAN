@@ -76,5 +76,14 @@ def write_logs(data, tensorboard, global_step):
 def generate_with_fixed_noise(net_G, fixed_noise, tensorboard, global_step, **kwargs):
     with torch.no_grad():
         fake_images = net_G(fixed_noise, **kwargs).detach().cpu()
+        # Shift value range from [-1, 1] to [0, 1]
+        fake_images = fake_images * 0.5 + 0.5
+        # Tensorboard expects RGB images
+        fake_images = torch.flip(fake_images, [1])
 
     tensorboard.add_images("Generator state images", fake_images, global_step)
+
+
+def load_weights(path, model):
+    weights = torch.load(path, map_location="cpu")
+    model.load_state_dict(weights)
