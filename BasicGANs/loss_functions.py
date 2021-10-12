@@ -25,7 +25,7 @@ def get_wasserstein_loss(net_G, net_D, batch=None, noise_vector=None, c_lambda=1
         )[0]
         gradient_penalty = ((gradient.view(gradient.shape[0], -1).norm(2, dim=1) - 1) ** 2).mean()
         gradient_penalty = c_lambda * gradient_penalty
-        gradient_penalty.backward()
+        gradient_penalty.backward(retain_graph=True)
 
         return D_x, D_G_z1, gradient_penalty
     else:
