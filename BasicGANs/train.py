@@ -31,11 +31,11 @@ if __name__ == "__main__":
     # Size of feature maps in GAN
     hidden_dim = 64
     # Learning rate for optimizers
-    lr = 0.0002  # 0.0001
-    beta_1 = 0.5  # 0
-    beta_2 = 0.999  # 0.9
+    lr = 0.0001  # 0.0002
+    beta_1 = 0.0  # 0.5
+    beta_2 = 0.9  # 0.999
     c_lambda = 10
-    disc_repeats = 1
+    disc_repeats = 5
     num_images = 64
     num_workers = 0
     device = "cpu"
@@ -122,7 +122,7 @@ if __name__ == "__main__":
             if global_step % log_step == 0:
                 save_checkpoint(
                     os.path.join(log_folder, "checkpoints", "checkpoints.tar"), net_G, net_D, optimizer_G, optimizer_D)
-                write_logs({"Global Step": global_step, "G_Loss": G_error.item(), "D_Loss": D_error_mean.item(),
+                write_logs({"Global Step": global_step, "G_Loss": G_error.item(), "D_Loss": D_error_mean,
                             "D(X)": D_x, "D(G(Z))": [D_G_z1, D_G_z2]}, tensorboard, global_step)
 
             # Check how the generator is doing by saving G's output on fixed_noise

@@ -27,7 +27,7 @@ def get_wasserstein_loss(net_G, net_D, batch=None, noise_vector=None, c_lambda=1
         gradient_penalty = c_lambda * gradient_penalty
         gradient_penalty.backward(retain_graph=True)
 
-        return D_x, D_G_z1, gradient_penalty
+        return D_x, D_G_z1.item(), gradient_penalty
     else:
         fake_batch = net_G(noise_vector, **kwargs)
         D_G_z2 = net_D(fake_batch, **kwargs).view(-1)
@@ -35,7 +35,7 @@ def get_wasserstein_loss(net_G, net_D, batch=None, noise_vector=None, c_lambda=1
         G_error = -D_G_z2.mean()
         G_error.backward()
 
-        return G_error, D_G_z2
+        return G_error, D_G_z2.mean().item()
 
 
 def get_minimax_loss(net_G, net_D, criterion, label, batch, noise_batch=None, fake_label=None, discriminator=True):
