@@ -515,24 +515,6 @@ class Discriminator(torch.nn.Module):
 
 
 if __name__ == "__main__":
-    from utils import form_state_dict, tensor_to_image, show_image, binary_style_mixing
-    # device = "cuda:0"
-    # pretrained_weights_path = "stylegan-1024px-new.model"
-    # pretrained_weights = torch.load(pretrained_weights_path, map_location=device)
-    # pretrained_generator = pretrained_weights["g_running"]
-    # generator = StyleBasedGenerator().to(device)
-    # my_generator = generator.state_dict()
-    #
-    # generator.load_state_dict(form_state_dict(pretrained_generator, my_generator))
-    #
-    # generator.eval()
-    # with torch.no_grad():
-    #     while True:
-    #         image = binary_style_mixing(generator, 8, device)
-    #         show_image(image)
     dummy_input = torch.FloatTensor(1, 3, 1024, 1024).to("cuda:0")
     disc = Discriminator(use_activations=True).to("cuda:0")
     output = disc(dummy_input, pg_step=8, alpha=0.3)
-
-    a = 1
-    b = 1

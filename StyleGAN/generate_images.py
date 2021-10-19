@@ -2,14 +2,14 @@ import math
 
 import torch
 
-from model import StyleBasedGenerator
+from models.StyleGAN import StyleBasedGenerator
 from utils import tensor_to_image, show_image, remove_module_from_keys, binary_style_mixing
 
 
 generation_size = 256
 style_mixing = True
 device = "cuda:0"
-weights_path = "/home/misha/GANCourse/StyleGAN/train_logs/NUMAKT_StyleGAN_training/SavedModels/Weights_256x256_120000.pth"
+weights_path = "/home/misha/GAN/StyleGAN/train_logs/NUMAKT_StyleGAN_training/SavedModels/Weights_256x256_120000.pth"
 
 pg_step = int(math.log2(generation_size) - 2)
 weights = torch.load(weights_path, map_location=device)

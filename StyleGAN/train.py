@@ -15,7 +15,7 @@ from typing import Type
 from torchvision import transforms
 from torch.utils.tensorboard import SummaryWriter
 
-from model import StyleBasedGenerator, Discriminator
+from models.StyleGAN import StyleBasedGenerator, Discriminator
 from cfg import *
 from BasicGANs.loss_functions import get_wasserstein_loss
 from BasicGANs.utils import write_logs, generate_with_fixed_noise
@@ -93,6 +93,25 @@ def save_checkpoint(path: str, net_G: torch.nn.Module, net_D: torch.nn.Module,
 
 def save_weight(path: str, net_G: torch.nn.Module):
     torch.save(net_G.state_dict(), path)
+
+
+# import models
+#
+# model_types = {
+#     "StyleGAN": {
+#         "Generator": models.StyleGAN.StyleBasedGenerator,
+#         "Discriminator": models.StyleGAN.Discriminator
+#     },
+#     "DCGAN": {
+#         "Generator": models.DCGAN.Generator,
+#         "Discriminator": models.DCGAN.Discriminator
+#     },
+#     "WGAN": {
+#         "Generator": models.DCGAN.Generator,
+#         "Discriminator": models.DCGAN.Discriminator
+#     },
+#     "BigGAN": {}
+# }
 
 
 if __name__ == "__main__":
