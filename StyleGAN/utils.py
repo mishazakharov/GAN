@@ -205,9 +205,8 @@ def tensor_to_image(tensor):
     tensor *= 255
     tensor = np.clip(tensor, 0, 255)
     tensor = tensor.astype(np.uint8)
-    image = cv2.cvtColor(tensor, cv2.COLOR_BGR2RGB)
 
-    return image
+    return tensor
 
 
 def show_image(image):

@@ -78,14 +78,16 @@ def moving_average(model_1: torch.nn.Module, model_2: torch.nn.Module, weight: f
 
 def save_checkpoint(path: str, net_G: torch.nn.Module, net_D: torch.nn.Module,
                     optimizer_G: Type[torch.optim.Optimizer], optimizer_D: Type[torch.optim.Optimizer],
-                    averaged_G: torch.nn.Module):
+                    averaged_G: torch.nn.Module = None):
     checkpoint = {
         "net_G": net_G.state_dict(),
         "net_D": net_D.state_dict(),
         "optimizer_G": optimizer_G.state_dict(),
         "optimizer_D": optimizer_D.state_dict(),
-        "averaged_G": averaged_G.state_dict()
     }
+    if averaged_G:
+        checkpoint["averaged_G"] = averaged_G.state_dict()
+
     torch.save(checkpoint, path)
 
 
@@ -124,12 +126,14 @@ if __name__ == "__main__":
     # Create the Discriminator
     net_D = torch.nn.DataParallel(Discriminator(fused=True, use_activations=True)).cuda()
 
-    averaged_G = StyleBasedGenerator(
-        z_dim=z_dim, w_dim=w_dim, image_dim=image_dim, n_layers=n_layers, normalize=normalize, fused=fused).cuda()
-    averaged_G.train(mode=False)
+    averaged_G = None
+    if weights_averaging:
+        averaged_G = StyleBasedGenerator(
+            z_dim=z_dim, w_dim=w_dim, image_dim=image_dim, n_layers=n_layers, normalize=normalize, fused=fused).cuda()
+        averaged_G.train(mode=False)
 
-    # Equalize parameters for running generator
-    moving_average(averaged_G, net_G.module, weight=0)
+        # Equalize parameters for running generator
+        moving_average(averaged_G, net_G.module, weight=0)
 
     optimizer_G = torch.optim.Adam(
         net_G.module.synthesis_network.parameters(), lr=lr[initial_image_size], betas=(beta_1, beta_2))
@@ -142,13 +146,17 @@ if __name__ == "__main__":
         "multiplier": 0.01
     })
 
-    if checkpoints_path is not None:
+    if checkpoints_path:
         checkpoint = torch.load(checkpoints_path)
         net_G.load_state_dict(checkpoint["net_G"])
         net_D.load_state_dict(checkpoint["net_D"])
-        averaged_G.load_state_dict(checkpoint["averaged_G"])
         optimizer_G.load_state_dict(checkpoint["optimizer_G"])
         optimizer_D.load_state_dict(checkpoint["optimizer_D"])
+        if weights_averaging:
+            if checkpoint.get("averaged_G"):
+                averaged_G.load_state_dict(checkpoint["averaged_G"])
+            else:
+                moving_average(averaged_G, net_G.module, weight=0)
 
     fixed_noise = torch.randn(num_images, z_dim, device=device)
 
@@ -169,14 +177,14 @@ if __name__ == "__main__":
             real_batch = real_batch.cuda()
             batch_size = real_batch.shape[0]
             # real_batch = real_batch.expand(batch_size, 3, real_batch.shape[2], real_batch.shape[3])
-            passed_samples += batch_size
 
+            passed_samples += batch_size
             alpha = min(1, 1 / phase_samples * (passed_samples + 1)) if not final_layer else 1
             # Initial size means training only first block
             if image_size == initial_image_size:
                 alpha = 1
             # Point where we should go to the next progressive growing phase
-            if passed_samples > phase_samples * 2 and not final_layer:
+            if passed_samples > phase_samples * 2 and not final_layer and progressive_growing:
                 passed_samples = 0
                 pg_step += 1
                 if pg_step > max_pg_step:
@@ -241,28 +249,31 @@ if __name__ == "__main__":
                 # Update the weights
                 optimizer_G.step()
 
-                # Update averaged generator
-                moving_average(averaged_G, net_G.module)
+                if weights_averaging:
+                    # Update averaged generator
+                    moving_average(averaged_G, net_G.module)
 
                 requires_grad(net_G, False)
                 requires_grad(net_D, True)
 
-            if global_step % 100 == 0:
+            if global_step % log_step == 0:
                 write_logs({"G_Loss": generator_loss_value, "D_Loss": disc_loss_value, "GP_Loss": gp_loss_value,
-                            "D(X)": D_x.mean().item(), "D(G(Z))": D_G_z1.mean().item()}, tensorboard, global_step)
+                            "D(X)": D_x.mean().item(), "D(G(Z))": D_G_z1}, tensorboard, global_step)
                 save_checkpoint(
                     os.path.join(log_folder, "checkpoints", "checkpoints.tar"),
                     net_G, net_D, optimizer_G, optimizer_D, averaged_G)
 
+            eval_save_model = averaged_G if weights_averaging else net_G
             # Check how the generator is doing by saving averaged G's output on fixed_noise
-            if global_step % 500 == 0:
-                generate_with_fixed_noise(averaged_G, fixed_noise, tensorboard, global_step,
+            if global_step % val_step == 0:
+                generate_with_fixed_noise(eval_save_model, fixed_noise, tensorboard, global_step,
                                           progressive_growing_phase=pg_step, alpha=alpha)
-                if global_step % 10_000 == 0:
-                    save_weight(os.path.join(
-                        log_folder, "SavedModels",
-                        "Weights_" + str(image_size) + "x" + str(image_size) + "_" + str(global_step) + ".pth"),
-                        averaged_G)
+
+            if global_step % save_step == 0:
+                save_weight(os.path.join(
+                    log_folder, "SavedModels",
+                    "Weights_" + str(image_size) + "x" + str(image_size) + "_" + str(global_step) + ".pth"),
+                    eval_save_model)
 
             log_info = (
                 f"Resolution: {image_size}; GLoss: {generator_loss_value:.3f}; DLoss: {disc_loss_value:.3f};"
