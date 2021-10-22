@@ -1,0 +1,15 @@
+GENERATOR:
+  {
+    z_dim: 100,
+    hidden_dim: 64,
+    image_dim: 3,
+    resolution: 128
+  }
+
+DISCRIMINATOR:
+  {
+    image_dim: 3,
+    hidden_dim: 64,
+    resolution: 128,
+    is_wgan: True
+  }

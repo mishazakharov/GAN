@@ -15,8 +15,11 @@ from typing import Type
 from torchvision import transforms
 from torch.utils.tensorboard import SummaryWriter
 
-from models.StyleGAN import StyleBasedGenerator, Discriminator
+from models.StyleGAN import StyleGAN
+from models.DCGAN import DCGAN
+
 from cfg import *
+from utils import load_cfg
 from BasicGANs.loss_functions import get_wasserstein_loss
 from BasicGANs.utils import write_logs, generate_with_fixed_noise
 
@@ -95,26 +98,26 @@ def save_weight(path: str, net_G: torch.nn.Module):
     torch.save(net_G.state_dict(), path)
 
 
-# import models
-#
-# model_types = {
-#     "StyleGAN": {
-#         "Generator": models.StyleGAN.StyleBasedGenerator,
-#         "Discriminator": models.StyleGAN.Discriminator
-#     },
-#     "DCGAN": {
-#         "Generator": models.DCGAN.Generator,
-#         "Discriminator": models.DCGAN.Discriminator
-#     },
-#     "WGAN": {
-#         "Generator": models.DCGAN.Generator,
-#         "Discriminator": models.DCGAN.Discriminator
-#     },
-#     "BigGAN": {}
-# }
+model_types = {
+    "StyleGAN": {
+        "Generator": StyleGAN.StyleBasedGenerator,
+        "Discriminator": StyleGAN.Discriminator
+    },
+    "DCGAN": {
+        "Generator": DCGAN.Generator,
+        "Discriminator": DCGAN.Discriminator
+    },
+    "WGAN": {
+        "Generator": DCGAN.Generator,
+        "Discriminator": DCGAN.Discriminator
+    },
+    "BigGAN": {}
+}
 
 
 if __name__ == "__main__":
+    model_cfg = load_cfg()
+
     # For reproducibility
     random.seed(seed)
     torch.manual_seed(seed)
@@ -127,33 +130,32 @@ if __name__ == "__main__":
     tensorboard = SummaryWriter(
         os.path.join(log_folder, "tensorboard_logs"))
 
-    # dataset = torchvision.datasets.MNIST(root="/home/misha/datasets/.", train=True, download=True,
-    #                                      transform=transforms.Compose(
-    #                                          [transforms.Resize(size=initial_image_size),
-    #                                           transforms.ToTensor(),
-    #                                           transforms.Normalize((0.5,), (0.5,))]))
     dataset = UnconditionalDataset(data_path, image_size=initial_image_size,
                                    transform=transforms.Compose([
                                        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]))
     data_loader = torch.utils.data.DataLoader(
         dataset, batch_size=batch_sizes[initial_image_size], shuffle=True, num_workers=num_workers)
 
+    nets = model_types.get(model_type, None)
+    if nets is None:
+        raise NotImplementedError
+    Generator, Discriminator = nets.get("Generator"), nets.get("Discriminator")
+
     # Create the generator
-    net_G = torch.nn.DataParallel(StyleBasedGenerator(
-        z_dim=z_dim, w_dim=w_dim, image_dim=image_dim, n_layers=n_layers, normalize=normalize, fused=fused)).cuda()
+    net_G = torch.nn.DataParallel(Generator.from_cfg(model_cfg.get("GENERATOR"))).to(device)
 
     # Create the Discriminator
-    net_D = torch.nn.DataParallel(Discriminator(fused=True, use_activations=True)).cuda()
+    net_D = torch.nn.DataParallel(Discriminator.from_cfg(model_cfg.get("DISCRIMINATOR"))).to(device)
 
     averaged_G = None
     if weights_averaging:
-        averaged_G = StyleBasedGenerator(
-            z_dim=z_dim, w_dim=w_dim, image_dim=image_dim, n_layers=n_layers, normalize=normalize, fused=fused).cuda()
+        averaged_G = Generator.from_cfg(model_cfg.get("GENERATOR")).to(device)
         averaged_G.train(mode=False)
 
         # Equalize parameters for running generator
         moving_average(averaged_G, net_G.module, weight=0)
 
+    # TODO: think!
     optimizer_G = torch.optim.Adam(
         net_G.module.synthesis_network.parameters(), lr=lr[initial_image_size], betas=(beta_1, beta_2))
     optimizer_D = torch.optim.Adam(net_D.parameters(), lr=lr[initial_image_size], betas=(beta_1, beta_2))

@@ -3,6 +3,11 @@ import random
 
 import torch
 
+from StyleGAN.models.base_module import BaseModule
+
+
+__all__ = ["StyleBasedGenerator", "Discriminator"]
+
 
 def equalized_lr(module, name="weight"):
     EqualizedLR.apply(module, name)
@@ -355,7 +360,7 @@ class SynthesisNetwork(torch.nn.Module):
         return output
 
 
-class StyleBasedGenerator(torch.nn.Module):
+class StyleBasedGenerator(BaseModule):
     def __init__(self, z_dim=512, w_dim=512, n_layers=8, normalize=True, image_dim=3, fused=True):
         super().__init__()
         self.mapping_network = MappingNetwork(z_dim=z_dim, w_dim=w_dim, n_layers=n_layers, normalize=normalize)
@@ -450,7 +455,7 @@ class DownsampleBlock(torch.nn.Module):
         return output
 
 
-class Discriminator(torch.nn.Module):
+class Discriminator(BaseModule):
     def __init__(self, fused=True, use_activations=False):
         super().__init__()
         self.downsampling_blocks = torch.nn.Sequential(

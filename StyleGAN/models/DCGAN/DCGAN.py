@@ -2,8 +2,13 @@ import math
 
 import torch
 
+from StyleGAN.models.base_module import BaseModule
 
-class Generator(torch.nn.Module):
+
+__all__ = ["Generator", "Discriminator"]
+
+
+class Generator(BaseModule):
     def __init__(self, z_dim, hidden_dim, image_dim=3, resolution=128):
         super(Generator, self).__init__()
         hd_multiplier = 8
@@ -28,7 +33,10 @@ class Generator(torch.nn.Module):
 
         self.main = torch.nn.Sequential(*layers)
 
-    def forward(self, noise_vector):
+    def forward(self, noise_vector, *args, **kwargs):
+        if len(noise_vector.shape) == 2:
+            noise_vector = noise_vector.unsqueeze(2).unsqueeze(2)
+
         return self.main(noise_vector)
 
     def _create_layer(self, in_dim, out_dim, kernel_size=4, stride=2, padding=1, is_last=False):
@@ -41,7 +49,7 @@ class Generator(torch.nn.Module):
         return torch.nn.Sequential(*ops)
 
 
-class Discriminator(torch.nn.Module):
+class Discriminator(BaseModule):
     def __init__(self, image_dim, hidden_dim, resolution=128, is_wgan=False):
         super(Discriminator, self).__init__()
         # Previous version had 12 after 8
@@ -70,7 +78,7 @@ class Discriminator(torch.nn.Module):
 
         self.main = torch.nn.Sequential(*layers)
 
-    def forward(self, x):
+    def forward(self, x, *args, **kwargs):
         return self.main(x)
 
     def _create_layer(self, in_dim, out_dim, stride=2, padding=1, is_last=False, is_first=False, is_wgan=False):

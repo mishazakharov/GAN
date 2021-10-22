@@ -1,9 +1,13 @@
+import os
 import copy
 
 import cv2
+import yaml
 import torch
 
 import numpy as np
+
+import cfg
 
 
 def parse_weights(pretrained_generator, my_generator):
@@ -251,3 +255,11 @@ def remove_module_from_keys(weights):
         placeholder[new_key] = weights[key]
 
     return placeholder
+
+
+def load_cfg():
+    model_cfg_path = os.path.join("models", cfg.model_type, "cfg.yaml")  # cfg.default_cfg_name
+    with open(model_cfg_path, "r") as f:
+        data = yaml.safe_load(f)
+
+    return data

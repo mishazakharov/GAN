@@ -1,0 +1,15 @@
+GENERATOR:
+  {
+    z_dim: 512,
+    w_dim: 512,
+    n_layers: 8,
+    normalize: True,
+    fused: True,
+    image_dim: 3
+  }
+
+DISCRIMINATOR:
+  {
+    fused: True,
+    use_activations: True
+  }
